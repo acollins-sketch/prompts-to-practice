@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>From Prompts to Practice · CFSEM · CMF 2025</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,300&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --ink:#1C2B3A;--ink-mid:#2E4155;--ink-lt:#3D5268;
+  --parchment:#F5F0E8;--parchment-dark:#EDE7D9;--parchment-deep:#E2D9C8;
+  --gold:#B8922A;--gold-lt:#D4AE50;--gold-pale:#F0E4C0;
+  --teal:#2A7A8C;--teal-lt:#3A9BAF;
+  --text:#1C2B3A;--text-mid:#4A6070;--text-lt:#7A90A0;
+  --border:#CBBFA8;--white:#FFFFFF;
+}
+html,body{height:100%;background:var(--ink);font-family:'DM Sans',sans-serif;}
+#root{height:100%;display:flex;flex-direction:column;}
+input,textarea,select,button{font-family:'DM Sans',sans-serif;}
+textarea{resize:vertical;}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)!important;box-shadow:0 0 0 3px rgba(42,122,140,0.12);}
+select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%234A6070' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:3px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+@keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+@keyframes pulse{0%,100%{opacity:.4;transform:scale(.85);}50%{opacity:1;transform:scale(1);}}
+.fade-up{animation:fadeUp .4s ease forwards;}
+.dot-loader span{width:9px;height:9px;border-radius:50%;background:var(--gold);display:inline-block;margin:0 4px;animation:pulse 1.3s ease-in-out infinite;}
+.dot-loader span:nth-child(2){animation-delay:.2s;}
+.dot-loader span:nth-child(3){animation-delay:.4s;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const ROLES = ["Executive Director / CEO","Marketing & Communications","Development / Fundraising","Program Officer","IT / Operations","Finance / Admin","Other"];
+const ORG_SIZES = ["Under 5 staff","5–15 staff","15–50 staff","50+ staff"];
+
+const ROLE_SUGGESTIONS = {
+  "Marketing & Communications":["Brand-consistent content at scale","Multilingual donor communications","Social media strategy & scheduling","Campaign theme & narrative development","Email personalization","Annual report storytelling","Newsletter drafting"],
+  "Development / Fundraising":["Personalized donor outreach drafting","Grant proposal development","Stewardship communication templates","Prospect research summarization","Impact report narratives","Major gift talking points","Year-end appeal copy"],
+  "Program Officer":["Grant report summarization","Community needs assessment synthesis","Site visit prep & summaries","Grantee communication templates","Program evaluation frameworks","RFP drafting","Meeting facilitation notes"],
+  "Executive Director / CEO":["Board communication drafting","Strategic planning facilitation","Staff meeting preparation","Stakeholder & funder updates","Annual report narrative","Leadership messaging","Policy brief summaries"],
+  "IT / Operations":["Workflow documentation & automation","AI use policy drafting","Vendor evaluation frameworks","Staff training material creation","Process documentation","IT governance frameworks","Security checklist development"],
+  "Finance / Admin":["Meeting notes & summaries","Document processing & routing","Reporting templates","Internal communications","Calendar & project coordination","Budget narrative drafting","Grant financial reporting"],
+  "Other":["Content creation","Research & summarization","Communication drafting","Planning & strategy","Documentation","Stakeholder engagement","Reporting"]
+};
+
+const CONCERNS = ["Data privacy & security","Losing our authentic voice","Staff resistance or fear","Budget & resource constraints","Don't know where to start","Board or leadership buy-in","Donor trust","Maintaining community relationships","Accuracy & fact-checking","Governance & policy gaps"];
+
+const SESSION_SECTIONS = [
+  {id:"s1",num:"01",title:"The Memory",sub:"The feeling right before something becomes obvious",prompt:"What tool does your organization now rely on that once felt optional or risky? What was the moment it stopped being optional?"},
+  {id:"s2",num:"02",title:"The Pattern",sub:"Recognizing where you are in the infrastructure arc",prompt:"Where does your organization sit today? What's the gap between your mission and your current tools?"},
+  {id:"s3",num:"03",title:"The Room We're In",sub:"The moment we're all standing in together",prompt:"What pressure point resonated most? What does your team struggle with that AI might address?"},
+  {id:"s4",num:"04",title:"What We Found",sub:"CFSEM's honest journey — successes and walls",prompt:"What from CFSEM's experience felt most relevant? What surprised you?"},
+  {id:"s5",num:"05",title:"What We Had to Figure Out",sub:"Security, governance, and the work of trust",prompt:"What governance questions do you need to answer before implementing AI? Who needs to be in that conversation?"},
+  {id:"s6",num:"06",title:"Watch It Work",sub:"Seeing the pattern in real time",prompt:"Which demonstration resonated most? What prompt or approach do you want to remember?"}
+];
+
+const RESOURCES = [
+  {icon:"📝",cat:"Templates",title:"Prompt Templates by Function",desc:"Ready-to-use prompts for donor comms, content, grant writing, data analysis, and more. Immediately usable tomorrow."},
+  {icon:"🔒",cat:"Governance",title:"Data Security Checklist",desc:"Step-by-step evaluation of what data is safe to use with AI tools — built from CFSEM's own governance process."},
+  {icon:"✅",cat:"Governance",title:"Vendor Evaluation Guide",desc:"Questions to ask AI vendors about data handling, privacy, and security. Know what you're agreeing to."},
+  {icon:"📅",cat:"Implementation",title:"30-Day Getting Started Plan",desc:"Week-by-week guide for your first AI pilot project, sized for small teams with limited bandwidth."},
+  {icon:"📋",cat:"Governance",title:"Sample AI Use Policy",desc:"A starting framework for staff guidelines on responsible AI use — customizable for any foundation size."},
+  {icon:"🎓",cat:"Training",title:"Staff Training Outline",desc:"A 2-hour workshop structure for introducing your team to AI tools without overwhelming them."},
+  {icon:"🗺️",cat:"Implementation",title:"Implementation Roadmap Template",desc:"A customizable 90-day template for phased, governed AI adoption at your pace."},
+  {icon:"💬",cat:"Connect",title:"Reach Ashley & Peter",desc:"Community Foundation for Southeast Michigan. Questions after the session? We're not done figuring this out either."}
+];
+
+// ─── ROADMAP GENERATOR ───────────────────────────────────────────────────────
+
+function generateRoadmap(profile, opps, ff, notes) {
+  const name = profile.name || "You";
+  const org = profile.org || "your foundation";
+  const role = profile.role || "foundation staff";
+  const size = profile.orgSize || "";
+  const ucs = opps.useCases;
+  const cons = opps.concerns;
+
+  const pilot = ucs.length > 0 ? ucs[0] : getRolePilot(role);
+  const second = ucs.length > 1 ? ucs[1] : getRoleSecond(role);
+  const third = ucs.length > 2 ? ucs[2] : getRoleThird(role);
+
+  const sizeNote = size === "Under 5 staff"
+    ? "With a small team, every hour matters. Keep experiments tight — one use case at a time."
+    : size === "5–15 staff"
+    ? "At your size, a single champion can shift the whole organization's relationship with AI."
+    : size === "50+ staff"
+    ? "With a larger team, governance comes first — build the guardrails before you scale."
+    : "Move at the pace your team can absorb without burning out.";
+
+  const concernNote = cons.length > 0
+    ? getConcernResponse(cons[0], role)
+    : "Your instinct to be thoughtful before diving in is an asset, not a barrier.";
+
+  const ffNote = ff.pastTool
+    ? `You hesitated on ${ff.pastTool} before — and that tool is now part of how you operate. The arc is the same here.`
+    : "You've navigated tool adoption before. The arc is the same — uncertainty first, then traction, then the inability to imagine working without it.";
+
+  const northStar = getNorthStar(role, org, ucs);
+
+  return `DAYS 1–30: YOUR FIRST EXPERIMENT
+
+${name}'s pilot: ${pilot}. This is your low-stakes, high-learning experiment — small enough that failure is instructive, not costly.
+
+${sizeNote}
+
+What to do: Choose one real piece of work coming up in the next 30 days. A donor letter, a program summary, a board update, a grant narrative section — something you'd write anyway. Run it through Claude or ChatGPT with a detailed prompt that includes your organization's voice and context. Don't start with a blank prompt. Start with: "You are a communications professional at ${org}. Our tone is [describe it]. Help me draft…"
+
+Who to involve: Just you, for now. This is a personal experiment, not an organizational initiative. You don't need buy-in yet. You need evidence.
+
+What success looks like: At least one output that saves you meaningful time or improves the quality of something you were going to produce anyway. Document it. Take a screenshot. That's your proof of concept.
+
+${concernNote}
+
+---
+
+DAYS 31–60: BUILD ON WHAT WORKED
+
+By now you have evidence. Something worked — even if imperfectly. That evidence is what earns the next conversation.
+
+Expand to: ${second}. This is your second experiment, informed by what you learned in the first 30 days. You now know more about what AI needs from you (context, voice, specifics) to produce something useful.
+
+Add one governance element: Have a conversation with your IT lead or executive director about what you're doing. Not a formal policy — a conversation. Ask: what data should we not put into these tools? What would make leadership comfortable? That conversation is the beginning of your governance framework. CFSEM's Peter Schmitke started there too.
+
+Build toward a small group: Identify one colleague who would be a willing early adopter. Share what you've learned. Not a presentation — a conversation. Show them the prompt that worked. Let them try it.
+
+---
+
+DAYS 61–90: EXTEND AND SHARE
+
+You now have a pattern. Two experiments, one governance conversation, one colleague who's seen it work. That's more than most organizations in your peer network have.
+
+Expand to: ${third}. This is where efficiency starts to compound — each new use case takes less time to figure out because you understand how to prompt effectively.
+
+Formalize one thing: Draft a simple one-page AI use guideline for your team — what tools you're using, what data stays out, what review process you're using before publishing AI-assisted content. It doesn't have to be comprehensive. It has to exist.
+
+Share outward: Connect with one peer at another foundation who attended this session. Compare notes. The sector learns faster when practitioners share honestly — which is exactly what Ashley and Peter modeled today.
+
+${ffNote}
+
+---
+
+YOUR NORTH STAR
+
+${northStar}`;
+}
+
+function getRolePilot(role) {
+  const map = {
+    "Marketing & Communications": "drafting one brand-consistent donor communication using AI",
+    "Development / Fundraising": "drafting one section of an upcoming grant proposal or donor letter",
+    "Program Officer": "summarizing a recent grantee report using AI to surface key themes",
+    "Executive Director / CEO": "drafting one internal communication — a staff update or board memo",
+    "IT / Operations": "documenting one workflow or process using AI to structure your notes",
+    "Finance / Admin": "using AI to draft meeting notes or a summary report",
+    "Other": "using AI to draft one piece of content you'd normally spend significant time on"
+  };
+  return map[role] || "using AI to draft one piece of content you'd normally spend significant time on";
+}
+
+function getRoleSecond(role) {
+  const map = {
+    "Marketing & Communications": "social media content for an upcoming program or event",
+    "Development / Fundraising": "personalized stewardship messages for a segment of your donor base",
+    "Program Officer": "a grantee communication template or RFP section",
+    "Executive Director / CEO": "a stakeholder update or funder communication",
+    "IT / Operations": "a draft AI use policy or vendor evaluation checklist",
+    "Finance / Admin": "a budget narrative or financial summary for a grant report",
+    "Other": "a second use case based on what you learned in the first experiment"
+  };
+  return map[role] || "a second use case based on what you learned in the first experiment";
+}
+
+function getRoleThird(role) {
+  const map = {
+    "Marketing & Communications": "a multilingual version of a key community communication",
+    "Development / Fundraising": "a prospect research summary or campaign planning document",
+    "Program Officer": "a program evaluation framework or community needs summary",
+    "Executive Director / CEO": "a strategic planning document or annual report narrative section",
+    "IT / Operations": "a staff training outline or governance documentation",
+    "Finance / Admin": "a reporting template or internal process documentation",
+    "Other": "a third use case that compounds what you've already learned"
+  };
+  return map[role] || "a third use case that compounds what you've already learned";
+}
+
+function getConcernResponse(concern, role) {
+  if (concern.toLowerCase().includes("privacy") || concern.toLowerCase().includes("security")) {
+    return "On data privacy: CFSEM's rule of thumb is that anything you wouldn't share publicly should not go into a free AI tool. Donor names, financial details, confidential grantee information — keep those out. For public-facing communications and general drafting, the risk profile is much lower. Start there.";
+  }
+  if (concern.toLowerCase().includes("voice") || concern.toLowerCase().includes("authentic")) {
+    return "On voice: AI doesn't know your organization's voice until you teach it. The Voices of Change campaign worked because Ashley gave Claude detailed context — the mission, the tone, the community, the stories. The more specific your prompt, the more your voice comes through. Think of it as briefing a very capable new contractor, not replacing your instincts.";
+  }
+  if (concern.toLowerCase().includes("staff") || concern.toLowerCase().includes("resistance")) {
+    return "On staff adoption: start with the person most likely to be curious, not most likely to resist. Let early wins do the persuading. One colleague who sees something work is worth more than a mandatory training for everyone.";
+  }
+  if (concern.toLowerCase().includes("budget") || concern.toLowerCase().includes("resource")) {
+    return "On budget: Claude.ai and ChatGPT both have free tiers that are sufficient for meaningful experimentation. Your 30-day pilot costs nothing but time. The ROI conversation becomes much easier after you have a real example of time saved.";
+  }
+  if (concern.toLowerCase().includes("start") || concern.toLowerCase().includes("where")) {
+    return "On where to start: you just answered that question by being in this room and capturing your opportunities above. The first step is literally the next piece of writing on your to-do list. That's your pilot.";
+  }
+  if (concern.toLowerCase().includes("trust") || concern.toLowerCase().includes("donor")) {
+    return "On donor trust: your donors trust you because of your relationships, your track record, and your mission — not because of how you draft communications. AI-assisted content that's reviewed and approved by you is still your content. The voice, the judgment, the relationships stay human.";
+  }
+  return "The concerns you've named are the right ones to be asking. They're the same questions CFSEM asked — and working through them carefully is what made adoption sustainable rather than rushed.";
+}
+
+function getNorthStar(role, org, ucs) {
+  const firstUC = ucs.length > 0 ? ucs[0].toLowerCase() : "";
+  if (role === "Marketing & Communications") {
+    return `${org} tells better stories, reaches more people, and builds deeper relationships — not because you have a bigger team, but because your team finally has tools equal to the mission you're serving.`;
+  }
+  if (role === "Development / Fundraising") {
+    return `Every donor who receives a communication from ${org} feels like the only one — because you have the capacity to personalize at scale what used to take weeks to produce by hand.`;
+  }
+  if (role === "Program Officer") {
+    return `The insights buried in grantee reports, community feedback, and field data actually surface — and your programs get smarter because the analysis that used to wait for bandwidth now happens in real time.`;
+  }
+  if (role === "Executive Director / CEO") {
+    return `${org} operates with the strategic clarity and communications infrastructure of an organization twice your size — because you chose to close the gap between your mission and your tools.`;
+  }
+  if (role === "IT / Operations") {
+    return `The governance framework you build now becomes the foundation that lets ${org} adopt AI confidently for years — because you did the hard thinking before it was urgent.`;
+  }
+  return `${org} does more of what it was built to do — because the gap between your mission and your capacity to serve it finally starts to close.`;
+}
+
+// ─── STORAGE ────────────────────────────────────────────────────────────────
+
+function useLocalStorage(key, initial) {
+  const [val, setVal] = useState(() => {
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : initial; } catch { return initial; }
+  });
+  const set = useCallback(v => {
+    setVal(v);
+    try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
+  }, [key]);
+  return [val, set];
+}
+
+// ─── COMPONENTS ─────────────────────────────────────────────────────────────
+
+function Label({children}) {
+  return <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"var(--text-mid)",marginBottom:6}}>{children}</div>;
+}
+
+function Input({value, onChange, placeholder, style={}}) {
+  return <input type="text" value={value} onChange={onChange} placeholder={placeholder}
+    style={{width:"100%",padding:"11px 14px",border:"1px solid var(--border)",borderRadius:6,fontSize:14,color:"var(--text)",background:"var(--white)",transition:"border-color .2s,box-shadow .2s",...style}}/>;
+}
+
+function Textarea({value, onChange, placeholder, minHeight=90}) {
+  return <textarea value={value} onChange={onChange} placeholder={placeholder}
+    style={{width:"100%",minHeight,padding:"11px 14px",border:"1px solid var(--border)",borderRadius:6,fontSize:14,color:"var(--text)",background:"var(--white)",lineHeight:1.7,transition:"border-color .2s,box-shadow .2s"}}/>;
+}
+
+function Select({value, onChange, options, placeholder}) {
+  return <select value={value} onChange={onChange}
+    style={{width:"100%",padding:"11px 40px 11px 14px",border:"1px solid var(--border)",borderRadius:6,fontSize:14,color:value?"var(--text)":"var(--text-lt)",background:"var(--white)",cursor:"pointer",transition:"border-color .2s"}}>
+    <option value="">{placeholder}</option>
+    {options.map(o=><option key={o} value={o}>{o}</option>)}
+  </select>;
+}
+
+function Chip({label, onRemove, color="teal"}) {
+  const colors = {
+    teal:{bg:"rgba(42,122,140,0.1)",border:"rgba(42,122,140,0.3)",text:"var(--teal)"},
+    red:{bg:"rgba(160,60,60,0.08)",border:"rgba(160,60,60,0.2)",text:"#903030"}
+  };
+  const c = colors[color];
+  return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:20,fontSize:13,background:c.bg,border:`1px solid ${c.border}`,color:c.text}}>
+    {label}
+    {onRemove && <button onClick={onRemove} style={{background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:17,lineHeight:1,padding:0,opacity:.65}}>×</button>}
+  </span>;
+}
+
+function SuggestionPill({label, onClick}) {
+  const [hov, setHov] = useState(false);
+  return <button onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+    style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:500,background:hov?"var(--gold-pale)":"var(--parchment-deep)",border:`1px solid ${hov?"var(--gold)":"var(--border)"}`,cursor:"pointer",color:hov?"var(--ink)":"var(--text-mid)",transition:"all .15s"}}>
+    {label}
+  </button>;
+}
+
+function Card({children, style={}}) {
+  return <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:10,padding:"24px 26px",...style}}>{children}</div>;
+}
+
+function SectionHeader({title, sub}) {
+  return <div style={{marginBottom:28}}>
+    <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:34,color:"var(--ink)",fontWeight:600,lineHeight:1.1,marginBottom:8}}>{title}</h2>
+    {sub && <p style={{fontSize:15,color:"var(--text-mid)",fontWeight:300,lineHeight:1.6}}>{sub}</p>}
+    <div style={{width:44,height:3,background:"linear-gradient(90deg,var(--gold),var(--gold-lt))",borderRadius:2,marginTop:14}}/>
+  </div>;
+}
+
+function Quote({children, attribution}) {
+  return <div style={{borderLeft:"3px solid var(--gold)",background:"var(--gold-pale)",padding:"13px 16px",borderRadius:"0 8px 8px 0",marginBottom:24}}>
+    <p style={{fontSize:14,color:"var(--text)",lineHeight:1.75,fontStyle:"italic"}}>{children}</p>
+    {attribution && <p style={{fontSize:12,color:"var(--text-lt)",marginTop:6,fontWeight:500}}>{attribution}</p>}
+  </div>;
+}
+
+// ─── ROADMAP RENDERER ────────────────────────────────────────────────────────
+
+function RoadmapContent({text}) {
+  if (!text) return null;
+  return <div>{text.split('\n').map((line,i)=>{
+    if (!line.trim()) return <div key={i} style={{height:8}}/>;
+    if (/^DAYS|^YOUR NORTH STAR/.test(line.trim())) return (
+      <div key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:"var(--ink)",marginTop:i>0?28:0,marginBottom:10,borderBottom:"1px solid var(--border)",paddingBottom:8}}>{line}</div>
+    );
+    if (/^---/.test(line.trim())) return <div key={i} style={{height:4,background:"var(--parchment-deep)",borderRadius:2,margin:"4px 0"}}/>;
+    return <p key={i} style={{fontSize:14,lineHeight:1.8,color:"#334",marginBottom:7}}>{line}</p>;
+  })}</div>;
+}
+
+// ─── MAIN APP ────────────────────────────────────────────────────────────────
+
+function App() {
+  const [tab, setTab] = useState("welcome");
+  const [saved, setSaved] = useState(false);
+  const [profile, setProfile] = useLocalStorage("p2p-profile", {name:"",org:"",role:"",orgSize:""});
+  const [notes, setNotes] = useLocalStorage("p2p-notes", {});
+  const [opps, setOpps] = useLocalStorage("p2p-opps", {useCases:[],concerns:[]});
+  const [ff, setFf] = useLocalStorage("p2p-ff", {pastTool:"",hesitation:"",outcome:"",reframe:""});
+  const [roadmap, setRoadmap] = useLocalStorage("p2p-roadmap", {generated:false,content:""});
+  const [actions, setActions] = useLocalStorage("p2p-actions", []);
+  const [newUC, setNewUC] = useState("");
+  const [newC, setNewC] = useState("");
+  const [newAct, setNewAct] = useState("");
+
+  const flash = useCallback(() => { setSaved(true); setTimeout(()=>setSaved(false),1400); }, []);
+
+  const upProfile = (f,v) => { const u={...profile,[f]:v}; setProfile(u); flash(); };
+  const upNote = (id,v) => { const u={...notes,[id]:v}; setNotes(u); flash(); };
+  const upFf = (f,v) => { const u={...ff,[f]:v}; setFf(u); flash(); };
+
+  const addUC = (val) => { const v=(val||newUC).trim(); if(!v||opps.useCases.includes(v))return; const u={...opps,useCases:[...opps.useCases,v]}; setOpps(u); flash(); if(!val)setNewUC(""); };
+  const rmUC = i => { const u={...opps,useCases:opps.useCases.filter((_,x)=>x!==i)}; setOpps(u); flash(); };
+  const addC = (val) => { const v=(val||newC).trim(); if(!v||opps.concerns.includes(v))return; const u={...opps,concerns:[...opps.concerns,v]}; setOpps(u); flash(); if(!val)setNewC(""); };
+  const rmC = i => { const u={...opps,concerns:opps.concerns.filter((_,x)=>x!==i)}; setOpps(u); flash(); };
+  const addAct = (t) => { const v=(t||newAct).trim(); if(!v)return; const u=[...actions,{text:v,done:false}]; setActions(u); flash(); if(!t)setNewAct(""); };
+  const toggleAct = i => { const u=actions.map((a,x)=>x===i?{...a,done:!a.done}:a); setActions(u); flash(); };
+  const rmAct = i => { const u=actions.filter((_,x)=>x!==i); setActions(u); flash(); };
+
+  const handleGenerate = () => {
+    const content = generateRoadmap(profile, opps, ff, notes);
+    const r = {generated:true,content};
+    setRoadmap(r);
+    flash();
+    // seed action items from roadmap sections
+    if (actions.length === 0) {
+      const seeds = [
+        `Run my 30-day pilot: ${opps.useCases[0] || "choose one upcoming writing task"}`,
+        "Have a governance conversation with IT or leadership",
+        `Try my second experiment: ${opps.useCases[1] || "second use case from my list"}`,
+        "Identify one colleague to share early learnings with",
+        "Draft a simple one-page AI use guideline"
+      ];
+      setActions(seeds.map(s=>({text:s,done:false})));
+    }
+  };
+
+  const profileDone = profile.name && profile.org && profile.role && profile.orgSize;
+  const noteCount = Object.values(notes).filter(Boolean).length;
+  const doneCount = actions.filter(a=>a.done).length;
+  const pct = actions.length>0 ? Math.round(doneCount/actions.length*100) : 0;
+
+  const TABS = [
+    {id:"welcome",icon:"◎",label:"Welcome"},
+    {id:"notes",icon:"✎",label:"Session Notes",badge:noteCount||null},
+    {id:"opps",icon:"◈",label:"Opportunities",badge:opps.useCases.length||null},
+    {id:"ff",icon:"⟲",label:"Fail Forward"},
+    {id:"roadmap",icon:"→",label:"My Roadmap",badge:roadmap.generated?"✓":null},
+    {id:"resources",icon:"⊞",label:"Resources"},
+    {id:"action",icon:"◻",label:"Action Plan",badge:actions.length?`${doneCount}/${actions.length}`:null},
+  ];
+
+  return (
+    <div style={{height:"100%",display:"flex",flexDirection:"column"}}>
+
+      {/* HEADER */}
+      <div style={{background:"var(--ink)",borderBottom:"1px solid rgba(184,146,42,0.2)",padding:"14px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+        <div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",color:"var(--gold-lt)",fontSize:18,fontWeight:600,letterSpacing:"0.01em"}}>From Prompts to Practice</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:1,fontWeight:300,letterSpacing:"0.05em"}}>CMF 54th Annual Conference · CFSEM · Ashley Collins & Peter Schmitke</div>
+        </div>
+        <div style={{opacity:saved?1:0,transition:"opacity .3s",background:"rgba(184,146,42,0.15)",border:"1px solid rgba(184,146,42,0.4)",color:"var(--gold-lt)",fontSize:11,fontWeight:700,letterSpacing:"0.08em",padding:"4px 12px",borderRadius:20}}>
+          SAVED ✓
+        </div>
+      </div>
+
+      {/* NAV */}
+      <div style={{background:"#243447",borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",overflowX:"auto",flexShrink:0,scrollbarWidth:"none"}}>
+        <style>{`::-webkit-scrollbar{display:none;}`}</style>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"13px 17px",fontSize:13,fontWeight:tab===t.id?600:400,color:tab===t.id?"var(--gold-lt)":"rgba(255,255,255,0.38)",background:"none",border:"none",borderBottom:tab===t.id?"2.5px solid var(--gold)":"2.5px solid transparent",cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,transition:"color .15s,border-color .15s"}}>
+            <span style={{opacity:.7,fontSize:12}}>{t.icon}</span>
+            {t.label}
+            {t.badge&&<span style={{background:"rgba(184,146,42,0.2)",color:"var(--gold-lt)",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10}}>{t.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENT */}
+      <div style={{flex:1,background:"var(--parchment)",overflowY:"auto"}}>
+        <div style={{maxWidth:740,margin:"0 auto",padding:"36px 24px 72px"}} key={tab} className="fade-up">
+
+          {/* ══ WELCOME ══ */}
+          {tab==="welcome" && <>
+            <div style={{background:"var(--ink)",borderRadius:14,padding:"38px 32px",marginBottom:22,position:"relative",overflow:"hidden"}}>
+              <div style={{position:"absolute",top:-80,right:-80,width:280,height:280,borderRadius:"50%",background:"radial-gradient(circle,rgba(184,146,42,0.1) 0%,transparent 65%)",pointerEvents:"none"}}/>
+              <div style={{position:"absolute",bottom:-40,left:-40,width:180,height:180,borderRadius:"50%",background:"radial-gradient(circle,rgba(42,122,140,0.08) 0%,transparent 65%)",pointerEvents:"none"}}/>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:"var(--gold)",marginBottom:14}}>Your Personal Session Companion</div>
+              <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,color:"white",fontWeight:500,lineHeight:1.15,marginBottom:16}}>Your Foundation's<br/>AI Implementation Workbook</h1>
+              <p style={{fontSize:14,color:"rgba(255,255,255,0.5)",lineHeight:1.8,fontWeight:300,maxWidth:500}}>Take notes during the session, name your opportunities, reflect honestly on what's holding you back — then generate a personalized 30-60-90 day roadmap. Everything saves automatically to your browser.</p>
+            </div>
+
+            <Card style={{marginBottom:16}}>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"var(--ink)",fontWeight:600,marginBottom:4}}>Set Up Your Profile</h3>
+              <p style={{fontSize:13,color:"var(--text-lt)",fontStyle:"italic",marginBottom:20}}>Personalizes your roadmap and auto-suggests relevant opportunities</p>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+                {[["Your Name","name","input","First name is fine"],["Your Organization","org","input","Foundation name"],["Your Role","role","select",null],["Organization Size","orgSize","select",null]].map(([lbl,fld,typ,ph])=>(
+                  <div key={fld} style={{marginBottom:16}}>
+                    <Label>{lbl}</Label>
+                    {typ==="input"
+                      ? <Input value={profile[fld]} onChange={e=>upProfile(fld,e.target.value)} placeholder={ph}/>
+                      : <Select value={profile[fld]} onChange={e=>upProfile(fld,e.target.value)} options={fld==="role"?ROLES:ORG_SIZES} placeholder="Select…"/>}
+                  </div>
+                ))}
+              </div>
+              {profileDone && <div style={{padding:"11px 14px",background:"rgba(42,122,140,0.08)",border:"1px solid rgba(42,122,140,0.2)",borderRadius:6,color:"var(--teal)",fontSize:13}}>
+                ✓ Profile complete, {profile.name}. Ready to build your roadmap.
+              </div>}
+            </Card>
+
+            <Card style={{marginBottom:22}}>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"var(--ink)",fontWeight:600,marginBottom:20}}>How This Works</h3>
+              {[["01","Follow Along","Use Session Notes to capture key moments during the presentation."],["02","Name Your Opportunities","Identify what AI could unlock for your specific role and org."],["03","Fail Forward","Name your real hesitations — then apply a pattern you've already lived."],["04","Generate Your Roadmap","Build a personalized 30-60-90 day plan from everything you've captured."]].map(([n,t,d])=>(
+                <div key={n} style={{display:"flex",gap:16,marginBottom:18}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:"var(--gold)",fontWeight:600,flexShrink:0,width:32,lineHeight:1.1}}>{n}</div>
+                  <div><div style={{fontWeight:600,fontSize:14,color:"var(--ink)",marginBottom:3}}>{t}</div><div style={{fontSize:13,color:"var(--text-mid)",lineHeight:1.65,fontWeight:300}}>{d}</div></div>
+                </div>
+              ))}
+            </Card>
+            <div style={{textAlign:"center"}}>
+              <button onClick={()=>setTab("notes")} style={{background:"var(--ink)",color:"white",padding:"14px 34px",borderRadius:7,fontSize:14,fontWeight:600,letterSpacing:"0.04em",border:"none",cursor:"pointer"}}>Start Taking Notes →</button>
+            </div>
+          </>}
+
+          {/* ══ NOTES ══ */}
+          {tab==="notes" && <>
+            <SectionHeader title="Session Notes" sub="Follow along with the presentation. Your notes feed directly into your roadmap."/>
+            {SESSION_SECTIONS.map(s=>(
+              <Card key={s.id} style={{marginBottom:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+                  <div style={{width:32,height:32,borderRadius:"50%",background:"var(--ink)",color:"white",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s.num}</div>
+                  <div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--ink)",fontWeight:600}}>{s.title}</div>
+                    <div style={{fontSize:12,color:"var(--text-lt)",fontStyle:"italic"}}>{s.sub}</div>
+                  </div>
+                </div>
+                <div style={{borderLeft:"3px solid var(--gold)",background:"var(--gold-pale)",padding:"11px 15px",borderRadius:"0 6px 6px 0",marginBottom:12,fontSize:13,color:"var(--text)",lineHeight:1.7,fontStyle:"italic"}}>{s.prompt}</div>
+                <Textarea value={notes[s.id]||""} onChange={e=>upNote(s.id,e.target.value)} placeholder="Your notes, reactions, and reflections…"/>
+              </Card>
+            ))}
+          </>}
+
+          {/* ══ OPPS ══ */}
+          {tab==="opps" && <>
+            <SectionHeader title="My Opportunities" sub="The breakout exercise — made personal to your organization."/>
+            <Quote>"Think about the tool your organization now cannot imagine working without. That's exactly where you are with AI. The question isn't 'should we do this' — it's what's your next step?"</Quote>
+
+            <Card style={{marginBottom:14}}>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--ink)",fontWeight:600,marginBottom:4}}>What Can't You Do Right Now?</h3>
+              <p style={{fontSize:13,color:"var(--text-lt)",fontStyle:"italic",marginBottom:16}}>Not for lack of will — for lack of capacity. What would change if that constraint disappeared?</p>
+              {profile.role && ROLE_SUGGESTIONS[profile.role] && (
+                <div style={{marginBottom:16}}>
+                  <Label>Suggestions for {profile.role}</Label>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:2}}>
+                    {ROLE_SUGGESTIONS[profile.role].filter(s=>!opps.useCases.includes(s)).map(s=><SuggestionPill key={s} label={s} onClick={()=>addUC(s)}/>)}
+                  </div>
+                </div>
+              )}
+              {opps.useCases.length>0 && <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:12}}>{opps.useCases.map((uc,i)=><Chip key={i} label={uc} onRemove={()=>rmUC(i)} color="teal"/>)}</div>}
+              <div style={{display:"flex",gap:8}}>
+                <Input value={newUC} onChange={e=>setNewUC(e.target.value)} placeholder="Add your own opportunity…" style={{onKeyDown:e=>e.key==="Enter"&&addUC()}}/>
+                <button onClick={()=>addUC()} onKeyDown={e=>e.key==="Enter"&&addUC()} style={{padding:"11px 20px",background:"var(--teal)",color:"white",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>Add</button>
+              </div>
+              <div style={{display:"none"}}><input onKeyDown={e=>e.key==="Enter"&&addUC()}/></div>
+            </Card>
+
+            <Card>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--ink)",fontWeight:600,marginBottom:4}}>What's Holding You Back?</h3>
+              <p style={{fontSize:13,color:"var(--text-lt)",fontStyle:"italic",marginBottom:16}}>Name the real concerns. These aren't obstacles — they're the right questions to be asking.</p>
+              <div style={{marginBottom:14}}>
+                <Label>Common concerns — tap to add</Label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+                  {CONCERNS.filter(s=>!opps.concerns.includes(s)).map(s=>(
+                    <button key={s} onClick={()=>addC(s)} style={{padding:"5px 12px",borderRadius:20,fontSize:12,background:"var(--parchment-deep)",border:"1px solid var(--border)",cursor:"pointer",color:"var(--text-mid)",transition:"all .15s"}}
+                      onMouseEnter={e=>{e.target.style.background="#fde8e8";e.target.style.borderColor="#c08080";e.target.style.color="#803030";}}
+                      onMouseLeave={e=>{e.target.style.background="var(--parchment-deep)";e.target.style.borderColor="var(--border)";e.target.style.color="var(--text-mid)";}}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {opps.concerns.length>0 && <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:12}}>{opps.concerns.map((c,i)=><Chip key={i} label={c} onRemove={()=>rmC(i)} color="red"/>)}</div>}
+              <div style={{display:"flex",gap:8}}>
+                <Input value={newC} onChange={e=>setNewC(e.target.value)} placeholder="Add a specific concern…"/>
+                <button onClick={()=>addC()} style={{padding:"11px 20px",background:"var(--teal)",color:"white",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>Add</button>
+              </div>
+            </Card>
+          </>}
+
+          {/* ══ FAIL FORWARD ══ */}
+          {tab==="ff" && <>
+            <SectionHeader title="Fail Forward" sub="Your hesitation is data. Let's work with it honestly."/>
+            <Quote>"There's a particular kind of embarrassment that comes from looking back at the thing you hesitated on. Not regret exactly. More like: I wish I'd trusted myself sooner."<br/><span style={{fontSize:12,opacity:.7}}>— Ashley Collins, CFSEM</span></Quote>
+
+            <Card>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--ink)",fontWeight:600,marginBottom:4}}>Apply the Pattern</h3>
+              <p style={{fontSize:13,color:"var(--text-lt)",fontStyle:"italic",marginBottom:24}}>Every tool we can't imagine working without was once the thing we weren't sure we needed.</p>
+
+              {[["A tool your org hesitated on before adopting","pastTool","input","Email, your CRM, project management, Slack…"],
+                ["What was the hesitation at the time?","hesitation","area","What were the fears or objections your team had?"],
+                ["How did it turn out?","outcome","area","Looking back, what happened after you adopted it?"]].map(([lbl,fld,typ,ph])=>(
+                <div key={fld} style={{marginBottom:18}}>
+                  <Label>{lbl}</Label>
+                  {typ==="input"
+                    ? <Input value={ff[fld]} onChange={e=>upFf(fld,e.target.value)} placeholder={ph}/>
+                    : <Textarea value={ff[fld]} onChange={e=>upFf(fld,e.target.value)} placeholder={ph}/>}
+                </div>
+              ))}
+
+              <div style={{background:"var(--ink)",borderRadius:8,padding:"18px 20px",marginBottom:18}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--gold-lt)",marginBottom:7,fontWeight:500}}>Now apply that pattern to AI</div>
+                <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.7,fontWeight:300}}>What do you know — having been through that arc before — that you wish you'd known at the beginning? If the pattern holds, what becomes possible?</div>
+              </div>
+
+              <Label>Your Reframe</Label>
+              <Textarea value={ff.reframe} onChange={e=>upFf("reframe",e.target.value)} placeholder="If the pattern holds — and it has before — what becomes possible for your organization and the communities you serve?" minHeight={110}/>
+            </Card>
+          </>}
+
+          {/* ══ ROADMAP ══ */}
+          {tab==="roadmap" && <>
+            <SectionHeader title="My Roadmap" sub="A personalized 30-60-90 day plan built from everything you've captured today."/>
+
+            <div style={{background:"var(--ink)",borderRadius:10,padding:"20px 24px",marginBottom:18}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",color:"var(--gold)",textTransform:"uppercase",marginBottom:14}}>What's going into your roadmap</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                {[[opps.useCases.length,"Opportunities"],[opps.concerns.length,"Concerns named"],[noteCount,"Note sections"],[ff.reframe?"✓":"—","Fail forward"]].map(([v,l])=>(
+                  <div key={l} style={{textAlign:"center",padding:"12px 8px",background:"rgba(255,255,255,0.05)",borderRadius:8}}>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:"var(--gold-lt)",fontWeight:600,lineHeight:1}}>{v}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:4,fontWeight:300}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {!profileDone && <div style={{padding:"12px 16px",background:"rgba(184,146,42,0.1)",border:"1px solid rgba(184,146,42,0.3)",borderRadius:6,marginBottom:16,fontSize:13,color:"var(--gold)",display:"flex",gap:8,alignItems:"center"}}>
+              <span>⚠</span><span>Complete your profile on the Welcome tab for the most specific roadmap.</span>
+            </div>}
+
+            {!roadmap.generated
+              ? <Card style={{textAlign:"center",padding:"44px 32px"}}>
+                  <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:"var(--ink)",marginBottom:12,fontWeight:600}}>Ready to build your plan?</h3>
+                  <p style={{fontSize:14,color:"var(--text-mid)",maxWidth:420,margin:"0 auto 28px",lineHeight:1.8,fontWeight:300}}>Your roadmap is generated from your profile, opportunities, concerns, and Fail Forward reflection — no two are the same.</p>
+                  <button onClick={handleGenerate} style={{background:"linear-gradient(135deg,var(--gold),var(--gold-lt))",color:"white",padding:"14px 38px",borderRadius:7,border:"none",fontSize:15,fontWeight:700,letterSpacing:"0.04em",cursor:"pointer",boxShadow:"0 4px 16px rgba(184,146,42,0.3)"}}>
+                    Generate My Roadmap →
+                  </button>
+                </Card>
+              : <>
+                  <Card style={{marginBottom:16}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
+                      <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--ink)",fontWeight:600}}>
+                        {profile.name?`${profile.name}'s Implementation Roadmap`:"Your Implementation Roadmap"}
+                      </h3>
+                      <button onClick={handleGenerate} style={{background:"transparent",color:"var(--text-mid)",border:"1.5px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,fontWeight:700,letterSpacing:"0.04em",cursor:"pointer"}}>Regenerate</button>
+                    </div>
+                    <RoadmapContent text={roadmap.content}/>
+                  </Card>
+                  <div style={{textAlign:"center"}}>
+                    <button onClick={()=>setTab("action")} style={{background:"var(--teal)",color:"white",padding:"13px 30px",borderRadius:7,border:"none",fontSize:14,fontWeight:600,letterSpacing:"0.04em",cursor:"pointer"}}>Build My Action Plan →</button>
+                  </div>
+                </>}
+          </>}
+
+          {/* ══ RESOURCES ══ */}
+          {tab==="resources" && <>
+            <SectionHeader title="Resource Hub" sub="Everything we wish someone had handed us. Take what's useful, ignore what isn't."/>
+            <p style={{fontSize:13,color:"var(--text-lt)",fontStyle:"italic",marginBottom:24,lineHeight:1.7}}>These resources will be shared with all attendees following the session. The toolkit is designed to give your team a running start — not a prescription, a head start.</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:22}}>
+              {RESOURCES.map((r,i)=>(
+                <div key={i} style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:10,padding:"18px 18px 16px",cursor:"default",transition:"border-color .2s,transform .15s,box-shadow .15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--teal-lt)";e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 6px 20px rgba(42,122,140,0.08)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
+                  <div style={{fontSize:24,marginBottom:10}}>{r.icon}</div>
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"var(--teal)",marginBottom:5}}>{r.cat}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--ink)",marginBottom:6,fontWeight:600,lineHeight:1.2}}>{r.title}</div>
+                  <div style={{fontSize:12,color:"var(--text-lt)",lineHeight:1.6,fontWeight:300}}>{r.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{background:"var(--ink)",borderRadius:10,padding:"24px 26px"}}>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"white",marginBottom:10,fontWeight:500}}>The Presenters</h3>
+              <p style={{fontSize:14,color:"rgba(255,255,255,0.55)",lineHeight:1.8,fontWeight:300,marginBottom:10}}>
+                <strong style={{color:"rgba(255,255,255,0.85)",fontWeight:600}}>Ashley Collins</strong> — Brand and Marketing Officer<br/>
+                <strong style={{color:"rgba(255,255,255,0.85)",fontWeight:600}}>Peter Schmitke</strong> — IT Director<br/>
+                Community Foundation for Southeast Michigan
+              </p>
+              <p style={{fontSize:13,color:"var(--gold-lt)",fontStyle:"italic",lineHeight:1.6}}>We're not done figuring this out either. Reach out anytime — the conversation doesn't end when we leave this room.</p>
+            </div>
+          </>}
+
+          {/* ══ ACTION PLAN ══ */}
+          {tab==="action" && <>
+            <SectionHeader title="My Action Plan" sub="Your commitments from today. What comes next?"/>
+
+            {actions.length===0 && !roadmap.generated && (
+              <Card style={{textAlign:"center",padding:"36px 28px",marginBottom:16}}>
+                <p style={{fontSize:14,color:"var(--text-mid)",marginBottom:20,lineHeight:1.75}}>Generate your roadmap first — action items will auto-populate here. Or add your own commitments below.</p>
+                <button onClick={()=>setTab("roadmap")} style={{background:"linear-gradient(135deg,var(--gold),var(--gold-lt))",color:"white",padding:"12px 28px",borderRadius:7,border:"none",fontSize:14,fontWeight:700,cursor:"pointer"}}>Generate My Roadmap →</button>
+              </Card>
+            )}
+
+            {actions.length>0 && (
+              <Card style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <Label>{doneCount} of {actions.length} complete</Label>
+                  <div style={{width:120,height:5,background:"var(--parchment-deep)",borderRadius:20,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:"linear-gradient(90deg,var(--gold),var(--teal))",borderRadius:20,transition:"width .5s ease"}}/>
+                  </div>
+                </div>
+                {actions.map((item,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:12,padding:"13px 14px",border:"1px solid var(--border)",borderRadius:7,marginBottom:8,background:item.done?"rgba(0,0,0,0.02)":"white",opacity:item.done?.55:1,transition:"opacity .2s"}}>
+                    <div onClick={()=>toggleAct(i)} style={{width:21,height:21,borderRadius:5,border:item.done?"none":"2px solid var(--border)",background:item.done?"var(--teal)":"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,transition:"all .15s"}}>
+                      {item.done&&<span style={{color:"white",fontSize:12,fontWeight:700}}>✓</span>}
+                    </div>
+                    <div style={{flex:1,fontSize:14,color:"var(--text)",lineHeight:1.6,textDecoration:item.done?"line-through":"none"}}>{item.text}</div>
+                    <button onClick={()=>rmAct(i)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-lt)",fontSize:18,lineHeight:1,padding:0,flexShrink:0}}>×</button>
+                  </div>
+                ))}
+              </Card>
+            )}
+
+            <Card style={{marginBottom:16}}>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--ink)",fontWeight:600,marginBottom:4}}>Add Your Own</h3>
+              <p style={{fontSize:13,color:"var(--text-lt)",fontStyle:"italic",marginBottom:14}}>What will you do in the next 30 days?</p>
+              <div style={{display:"flex",gap:8}}>
+                <Input value={newAct} onChange={e=>setNewAct(e.target.value)} placeholder="e.g. Run AI pilot on our next donor newsletter…"/>
+                <button onClick={()=>addAct()} style={{padding:"11px 20px",background:"var(--teal)",color:"white",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>Add</button>
+              </div>
+            </Card>
+
+            <div style={{background:"var(--gold-pale)",border:"1px solid rgba(184,146,42,0.25)",borderRadius:10,padding:"22px 24px"}}>
+              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--ink)",marginBottom:10,fontWeight:400,fontStyle:"italic",lineHeight:1.5}}>"We've always been building toward something we couldn't fully see yet. That's not a reason to wait. That's the whole point."</p>
+              <p style={{fontSize:12,color:"var(--text-lt)",fontWeight:500}}>Ashley Collins · CFSEM · From Prompts to Practice · CMF 54th Annual Conference</p>
+            </div>
+          </>}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
